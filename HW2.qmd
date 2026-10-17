@@ -1,0 +1,87 @@
+# EDS 223 HW 2 - Redlining and Environmental Injustice
+
+Create a map of historical redlining neighborhoods, including:
+neighborhoods colored by HOLC grade
+an appropriate base map
+
+Load packages and data
+```{r}
+#| warning: false
+#| message: false
+library(sf)
+library(tmap)
+library(tidyverse)
+library(spData)
+```
+
+
+```{r}
+
+ej_screen <- st_read('EDS223-HW2/data/ejscreen/EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb')
+
+redline <- st_read('EDS223-HW2/data/mapping-inequality/mapping-inequality-los-angeles.json')
+
+crashes <- st_read('EDS223-HW2/data/SWITRS_LA/Crashes.csv')
+```
+
+
+LA county
+```{r}
+#| warning: false
+#| message: false
+# filter to a state you are interested in
+california <- ej_screen %>%
+  dplyr::filter(ST_ABBREV == "CA") 
+
+# find the average values for all variables within counties
+ca_counties <- aggregate(california,
+                              by = list(california$CNTY_NAME),
+                              FUN = mean, na.rm = TRUE)
+
+
+# filter to a county you are interested in
+la <- ca_counties %>%
+  dplyr::filter(Group.1 %in% c("Los Angeles County"))
+```
+
+crashes needs cleaning! make lat and long numeric
+
+```{r}
+crashes_clean <- crashes |> 
+    mutate(POINT_X = as.numeric(POINT_X),
+           POINT_Y = as.numeric(POINT_Y)) |> 
+    filter(!is.na(POINT_X), !is.na(POINT_Y))
+```
+
+
+make the csv into a spatial object so we can assign the crs
+```{r}
+crashes_sf <- st_as_sf(crashes_clean,
+                  coords = c("POINT_X", "POINT_Y"),  # x first, then y
+                  crs = 4326)                 # WGS84
+
+st_crs(crashes_sf)  # now check it
+```
+
+check other crs
+
+```{r}
+st_crs(la)
+st_crs(redline)
+```
+
+
+```{r}
+# make la fit with the other crs
+la <- st_transform(la, 4326)
+```
+
+try mapping
+
+```{r}
+tm_shape(la, bbox = redline) + 
+    tm_polygons() +
+tm_shape(redline) +
+    tm_polygons(fill = 'grade', lwd = 0.1)
+
+```
