@@ -1,13 +1,16 @@
-# EDS 223 HW 2 - Redlining and Environmental Injustice
+---
+title: "HW 2 - Redlining and Environmental Injustice"
+author: "Michaela Dennis"
+format: pdf
+execute:
+  warning: false
+  message: false
+---
 
+# Part 1: Create a map of historical redlining neighborhoods
 
-## Part 1
-Create a map of historical redlining neighborhoods, including:
-neighborhoods colored by HOLC grade
-an appropriate base map
-
-Load packages and data
 ```{r}
+# Load packages and data
 #| warning: false
 #| message: false
 library(sf)
@@ -15,11 +18,9 @@ library(tmap)
 library(tidyverse)
 library(spData)
 library(knitr)
+library(gt)
 set_theme(theme_bw())
-```
 
-
-```{r}
 
 ej_screen <- st_read('data/ejscreen/EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb')
 
@@ -28,67 +29,86 @@ redline <- st_read('data/mapping-inequality/mapping-inequality-los-angeles.json'
 crashes <- st_read('data/SWITRS_LA/Crashes.csv')
 ```
 
-
-LA county
 ```{r}
+
+# Filter to LA county
+
 #| warning: false
 #| message: false
-# # filter to a state you are interested in
-# california <- ej_screen %>%
-#   dplyr::filter(ST_ABBREV == "CA") 
-
-# # find the average values for all variables within counties
-# ca_counties <- aggregate(california,
-#                               by = list(california$CNTY_NAME),
-#                               FUN = mean, na.rm = TRUE)
-
-
-# filter to a county you are interested in
+# filter to the county we are interested in
 la <- ej_screen %>%
   dplyr::filter(CNTY_NAME %in% c("Los Angeles County"))
 ```
 
-crashes needs cleaning! make lat and long numeric
 
 ```{r}
+# Clean bicycle and pedestrian crash data
+
 crashes_clean <- crashes |> 
-    mutate(POINT_X = as.numeric(POINT_X),
+    mutate(POINT_X = as.numeric(POINT_X), # these columns started out as characters, so we need to make them numeric
            POINT_Y = as.numeric(POINT_Y)) |> 
-    filter(!is.na(POINT_X), !is.na(POINT_Y))
+    filter(!is.na(POINT_X), !is.na(POINT_Y)) # take out the nas
 ```
 
+This dataset has laatitude and longitude columns in addition to `POINT_X` and `POINT_Y` columns. By reading the metadata [found here](https://tims.berkeley.edu/help/crashdata/switrs-codebook.php), we can discern that POINT_X and POINT_Y are the better choices based on amount of NAs and the precision of data. 
 
-make the csv into a spatial object so we can assign the crs
 ```{r}
+# Make crashes data into a spatial object
+
 crashes_sf <- st_as_sf(crashes_clean,
-                  coords = c("POINT_X", "POINT_Y"),  # x first, then y
-                  crs = 4326)                 # WGS84
+                  coords = c("POINT_X", "POINT_Y"),  
+                  crs = 4326)    # WGS84 -- from metadata
 
-st_crs(crashes_sf)  # now check it
+
+# create a warning to test if the crs's match
+if(st_crs(crashes_sf) != st_crs(redline)){
+  warning("coordinate refrence systems do not match")
+} else {
+  print("match!")
+}
 ```
 
-check other crs
-
 ```{r}
-st_crs(la)
-st_crs(redline)
+# Check the other objects' crs.
+
+if(st_crs(la) != st_crs(redline)){
+  warning("coordinate refrence systems do not match")
+  } else {
+  print("match!")
+}
 ```
 
-
 ```{r}
-# make la fit with the other crs
+# Transform the objects so all have the same crs
+
 redline <- st_transform(redline, 3857)
-crashes_sf <- st_transform(crashes_sf, 3857)
+if(st_crs(la) != st_crs(redline)){
+  warning("coordinate refrence systems do not match")
+  } else {
+  print("match!")
+}
+
+
 ```
 
-try mapping
 
 ```{r}
-tm_basemap(server = "Esri.WorldTopoMap") +
-tm_shape(la, bbox = redline) + 
-    tm_polygons(lwd = 0.3) +
+crashes_sf <- st_transform(crashes_sf, 3857)
+if(st_crs(crashes_sf) != st_crs(redline)){
+  warning("coordinate refrence systems do not match")
+} else {
+  print("match!")
+}
+
+```
+
+## Map HOLC grade by neighborhood
+```{r}
+tm_basemap(server = "Esri.WorldTopoMap") + # choose basemap
+tm_shape(la, bbox = redline) + # set the bbox to where there is info on redlining
+    tm_borders(lwd = 0.3, ) +
 tm_shape(redline) +
-    tm_polygons(fill = 'grade', lwd = 0.1,
+    tm_polygons(fill = 'grade', lwd = 0.1, # color by HOLC grade
     fill.legend = tm_legend("HOLC Grade")) +
 tm_scalebar(position = tm_pos_out("center", "bottom")) +
 tm_title("HOLC Grade by Neighborhood in Los Angeles County") +
@@ -99,53 +119,63 @@ tm_compass(position = tm_pos_in(
        
 ```
 
-### Create a table summarizing the percentage of census block groups that fall within each HOLC grade
-
 ```{r}
+# Create a table summarizing the percentage of census block groups that fall within each HOLC grade
 
 # Join using within
-holc_bg <- st_join(la, redline, join = st_within ) 
+holc_bg <- st_join(la, redline) 
 
 # group by the grading and then add a column with the percentage in each grade
- holc_bg |>
-  group_by(grade) |>          
-  summarise(n = n()) |>
-  mutate(percent = n/sum(n)) |> 
-  kable()
+holc_bg |>
+  st_drop_geometry() |>
+  mutate(grade = replace_na(grade, "No HOLC grade")) |>
+  count(grade) |>
+  mutate(percent = n / nrow(holc_bg) * 100) |>
+  gt() |>
+  tab_header(title = "Census Block Groups by HOLC Grade",
+             subtitle = "Los Angeles County; block groups fully within a HOLC polygon") |>
+  cols_label(grade = "HOLC Grade",
+             n = "Block groups",
+             percent = "Percent of block groups (%)") 
 ```
 
-### Create at least two visualizations summarizing current conditions (from the EJScreen data) within HOLC grades using the mean of the following variables (you may combine variables in a single visualization or look at a single variable per plot):
-% low income
-percentile for Particulate Matter 2.5
-percentile for low life expectancy
-Use ggplot for your visualizations! You will first need to calculate mean of each variable grouped by HOLC grade.
 
 ```{r}
+holc_bg |> 
+  st_drop_geometry() |> 
+  count(grade)
+```
+
+
+```{r}
+# Summarize current conditions (from the EJScreen data) within HOLC grades 
 # group by means
 holc_means <- holc_bg |>
+  st_drop_geometry() |> 
   group_by(grade) |>
   summarise(low_income_pct = mean(LOWINCPCT, na.rm = TRUE),
-            pm25_ppm = mean(PM25, na.rm = TRUE),
-            low_life_exp_pct = mean(LIFEEXPPCT, na.rm = TRUE))
+            pm25_pct = mean(P_PM25, na.rm = TRUE),
+            low_life_exp_pct = mean(P_LIFEEXPPCT, na.rm = TRUE))
 
 ```
 
-plot by variable
 
 ```{r}
+# plot by variable
+
 # pivot longer
 holc_long <- holc_means |>
-  pivot_longer(cols = c(low_income_pct, pm25_ppm, low_life_exp_pct), 
+  pivot_longer(cols = c(low_income_pct, pm25_pct, low_life_exp_pct), 
                names_to = "Injustices",   
                values_to = "Mean_disparity")  
 
 # plot and use facet wrap to show all 4
-ggplot(holc_long, aes(x = grade, y = Mean_disparity, fill = grade)) +
-   geom_col() + 
+ggplot(holc_long, aes(x = grade, y = Mean_disparity, fill = grade)) + 
+  geom_col() +
    facet_wrap(~ Injustices, scales = "free_y") +
     labs(title = "Average disparity levels by HOLC Grade",
         x = "HOLC Grade",
-        y = "Average level",
+        y = "Mean values (units in labels)",
         fill = "Grade")
 
 ```
@@ -155,34 +185,24 @@ In the graph above we can see that for both percentage of low income households 
 
 
 ## Part 2
-Your second task is to explore the legacy of historical redlining in Los Angeles on the report of pedestrian and bike crashes/ fatalities.
-
-Description
-For this assignment, you must produce the following based on observations from 2020-2025:
-
-## A figure summarizing the percent of observations within redlined neighborhoods within each HOLC grade
-
-Create a visualizations that shows:
-
-- The percentage of bike and pedestrian crashes and fatalities within each HOLC grade
-- Include an appropiate title, axis labels, and legend
-*Hints*: Make sure to filter for bike and pedestrian crahes(PEDESTRIAN_ACCIDENT and BICYCLE_ACCIDENT). Look at the difference in NAs between POINT_X/POINT_Y and LONGITUDE/LATITUDE before you decide which to use. Ensure the SWITRS data and HOLC dataset have matching CRS’, then perform a spatial join to assign each crash to a corresponding HOLC grade.
-
+## Summarizing the percent of observations within redlined neighborhoods within each HOLC grade
 
 ```{r}
-
+# create a new joined data frame with crash data and redlined data
 bikeped <- crashes_sf |>
-  st_filter(la) |>                   
+  st_filter(la) |>       # filter to just la           
   st_join(redline, join = st_within)     
 
+# create a summary data fram with the percentage of accidents 
 bikeped_summary <- bikeped |>
   st_drop_geometry() |>
+  mutate(ACCIDENT_YEAR = as.numeric(ACCIDENT_YEAR)) |> 
   filter(ACCIDENT_YEAR >= 2020 & ACCIDENT_YEAR <=2025) |> 
   filter(BICYCLE_ACCIDENT == "Y" | PEDESTRIAN_ACCIDENT == "Y") |>
   drop_na(grade) |>  
   group_by(grade) |>
   summarise(crashes = n()) |>
-  mutate(percent = (crashes)/sum(crashes))                      # percents for both
+  mutate(percent = ((crashes)/sum(crashes))*100)                 
 
 ```
 
