@@ -10,9 +10,11 @@ execute:
 # Part 1: Create a map of historical redlining neighborhoods
 
 ```{r}
-# Load packages and data
 #| warning: false
 #| message: false
+
+# Load packages and data
+
 library(sf)
 library(tmap)
 library(tidyverse)
@@ -22,20 +24,25 @@ library(gt)
 set_theme(theme_bw())
 
 
-ej_screen <- st_read('data/ejscreen/EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb')
+ej_screen <- st_read(
+  'data/ejscreen/EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb'
+  )
 
-redline <- st_read('data/mapping-inequality/mapping-inequality-los-angeles.json')
+redline <- st_read(
+  'data/mapping-inequality/mapping-inequality-los-angeles.json'
+  )
 
-crashes <- st_read('data/SWITRS_LA/Crashes.csv')
+crashes <- st_read(
+  'data/SWITRS_LA/Crashes.csv'
+  )
 ```
 
 ```{r}
-
-# Filter to LA county
-
 #| warning: false
 #| message: false
-# filter to the county we are interested in
+
+
+# filter to the county we are interested in (LA)
 la <- ej_screen %>%
   dplyr::filter(CNTY_NAME %in% c("Los Angeles County"))
 ```
@@ -45,24 +52,30 @@ la <- ej_screen %>%
 # Clean bicycle and pedestrian crash data
 
 crashes_clean <- crashes |> 
-    mutate(POINT_X = as.numeric(POINT_X), # these columns started out as characters, so we need to make them numeric
-           POINT_Y = as.numeric(POINT_Y)) |> 
-    filter(!is.na(POINT_X), !is.na(POINT_Y)) # take out the nas
+    mutate(
+      POINT_X = as.numeric(
+        POINT_X), # started as characters, so we need to make them numeric
+           POINT_Y = as.numeric(
+            POINT_Y)) |> 
+    filter(
+      !is.na(POINT_X),
+       !is.na(POINT_Y)) # take out the nas
 ```
 
-This dataset has laatitude and longitude columns in addition to `POINT_X` and `POINT_Y` columns. By reading the metadata [found here](https://tims.berkeley.edu/help/crashdata/switrs-codebook.php), we can discern that POINT_X and POINT_Y are the better choices based on amount of NAs and the precision of data. 
+This dataset has latitude and longitude columns in addition to `POINT_X` and `POINT_Y` columns. By reading the metadata found [here](https://tims.berkeley.edu/help/crashdata/switrs-codebook.php), we can discern that `POINT_X` and `POINT_Y` are the better choices based on amount of NAs and the precision of data. 
 
 ```{r}
 # Make crashes data into a spatial object
 
 crashes_sf <- st_as_sf(crashes_clean,
-                  coords = c("POINT_X", "POINT_Y"),  
+                  coords = c(
+                    "POINT_X", "POINT_Y"),  
                   crs = 4326)    # WGS84 -- from metadata
 
 
 # create a warning to test if the crs's match
 if(st_crs(crashes_sf) != st_crs(redline)){
-  warning("coordinate refrence systems do not match")
+  warning("coordinate reference systems do not match")
 } else {
   print("match!")
 }
@@ -72,7 +85,7 @@ if(st_crs(crashes_sf) != st_crs(redline)){
 # Check the other objects' crs.
 
 if(st_crs(la) != st_crs(redline)){
-  warning("coordinate refrence systems do not match")
+  warning("coordinate reference systems do not match")
   } else {
   print("match!")
 }
@@ -83,7 +96,7 @@ if(st_crs(la) != st_crs(redline)){
 
 redline <- st_transform(redline, 3857)
 if(st_crs(la) != st_crs(redline)){
-  warning("coordinate refrence systems do not match")
+  warning("coordinate reference systems do not match")
   } else {
   print("match!")
 }
@@ -95,7 +108,7 @@ if(st_crs(la) != st_crs(redline)){
 ```{r}
 crashes_sf <- st_transform(crashes_sf, 3857)
 if(st_crs(crashes_sf) != st_crs(redline)){
-  warning("coordinate refrence systems do not match")
+  warning("coordinate reference systems do not match")
 } else {
   print("match!")
 }
@@ -120,12 +133,13 @@ tm_compass(position = tm_pos_in(
 ```
 
 ```{r}
-# Create a table summarizing the percentage of census block groups that fall within each HOLC grade
+# Create a table summarizing the percentage of 
+# census block groups that fall within each HOLC grade
 
 # Join using within
-holc_bg <- st_join(la, redline) 
+holc_bg <- st_join(la, redline, join = st_within) 
 
-# group by the grading and then add a column with the percentage in each grade
+# group by the grading and  add a column with the percentage in each grade
 holc_bg |>
   st_drop_geometry() |>
   mutate(grade = replace_na(grade, "No HOLC grade")) |>
@@ -133,17 +147,11 @@ holc_bg |>
   mutate(percent = n / nrow(holc_bg) * 100) |>
   gt() |>
   tab_header(title = "Census Block Groups by HOLC Grade",
-             subtitle = "Los Angeles County; block groups fully within a HOLC polygon") |>
+             subtitle = "Los Angeles County; 
+             block groups fully within a HOLC polygon") |>
   cols_label(grade = "HOLC Grade",
              n = "Block groups",
              percent = "Percent of block groups (%)") 
-```
-
-
-```{r}
-holc_bg |> 
-  st_drop_geometry() |> 
-  count(grade)
 ```
 
 
@@ -153,7 +161,7 @@ holc_bg |>
 holc_means <- holc_bg |>
   st_drop_geometry() |> 
   group_by(grade) |>
-  summarise(low_income_pct = mean(LOWINCPCT, na.rm = TRUE),
+  summarise(low_income_pct = (mean(LOWINCPCT, na.rm = TRUE))*100,
             pm25_pct = mean(P_PM25, na.rm = TRUE),
             low_life_exp_pct = mean(P_LIFEEXPPCT, na.rm = TRUE))
 
@@ -169,7 +177,7 @@ holc_long <- holc_means |>
                names_to = "Injustices",   
                values_to = "Mean_disparity")  
 
-# plot and use facet wrap to show all 4
+# plot and use facet wrap to show all 3
 ggplot(holc_long, aes(x = grade, y = Mean_disparity, fill = grade)) + 
   geom_col() +
    facet_wrap(~ Injustices, scales = "free_y") +
@@ -181,7 +189,7 @@ ggplot(holc_long, aes(x = grade, y = Mean_disparity, fill = grade)) +
 ```
 
 #### Interpretation
-In the graph above we can see that for both percentage of low income households and percentage of low life expectancy that as HOLC grade gerts worse (closer to 'D' rating), the average level of each variable increases. Neighborhoods with higher pedestrian fatalities are also experiencing more environmental and health challenges. This pattern suggest a potential relationship that could be explained by historical redlining practices. People residing in low-income neighborhoods may not be receiving the same government attention and funding for proper infrastructure as their high-income counterparts.
+In the graph above we can see that for both percentage of low income households and percentage of low life expectancy that as HOLC grade gets worse (closer to 'D' rating), the average level of each variable increases. Neighborhoods with higher pedestrian fatalities are also experiencing more environmental and health challenges. This pattern suggest a potential relationship that could be explained by historical redlining practices. People residing in low-income neighborhoods may not be receiving the same government attention and funding for proper infrastructure as their high-income counterparts.
 
 
 ## Part 2
@@ -210,9 +218,18 @@ bikeped_summary <- bikeped |>
 ```{r}
 ggplot(bikeped_summary, aes(x = grade, y = percent, fill = grade)) + 
     geom_col() +
-    labs(title = "Percentage of bike and pedestrian crashes (and fatalities) between 2020-2025", 
+    labs(
+      title = 
+        "Percentage of bike and pedestrian crashes 
+        (and fatalities) between 2020-2025", 
         x = "HOLC Grade", 
         y = "Percent",
         fill = "Grade")
 
 ```
+
+
+
+
+## References:
+“TIMS - Transportation Injury Mapping System.” Berkeley.Edu, 2017, https://tims.berkeley.edu/help/crashdata/switrs-codebook.php. Accessed 23 Oct. 2026.

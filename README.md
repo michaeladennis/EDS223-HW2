@@ -22,7 +22,7 @@ EDS223-HW2
 ```
 
 ### Data
-The necessary data is from [EPA EJScreen](https://www.epa.gov/ejscreen) website, the [University of Richmond Mapping Project](https://dsl.richmond.edu/panorama/redlining/#loc=5/39.1/-94.58&text=downloads). This source is no longer available, but can be found on an archived version of the website [here](https://pedp-ejscreen.azurewebsites.net/).
+The necessary data is from [EPA EJScreen](https://www.epa.gov/ejscreen) website, the [University of Richmond Mapping Project](https://dsl.richmond.edu/panorama/redlining/#loc=5/39.1/-94.58&text=downloads), and the [Statewide Integrated Traffice Records System (SWITRS) database](https://tims.berkeley.edu/). The EPA EJScreen is no longer available, but can be found on an archived version of the website [here](https://pedp-ejscreen.azurewebsites.net/).
 
 ### Authors and current contributors
 [Michaela Dennis](https://github.com/michaeladennis)
@@ -30,7 +30,13 @@ The necessary data is from [EPA EJScreen](https://www.epa.gov/ejscreen) website,
 ### References and acknowledgements
 #### Data
 EJScreen: Environmental Justice Screening and Mapping Tool. 
-PEDP, pedp-ejscreen.azurewebsites.net/. Accessed 4 Oct. 2026. 
+PEDP, pedp-ejscreen.azurewebsites.net/. Accessed 20 Oct. 2026. 
 
+“TIMS - Transportation Injury Mapping System.” Tims.Berkeley.Edu, 
+https://tims.berkeley.edu/. Accessed 23 Oct. 2026.
+
+Nelson, Robert. “Mapping Inequality.” Dsl.Richmond.Edu, 2023, https://dsl.richmond.edu/panorama/redlining/. Accessed 23 Oct. 2026.
 
 #### References
+“TIMS - Transportation Injury Mapping System.” Berkeley.Edu, 2017, https://tims.berkeley.edu/help/crashdata/switrs-codebook.php. Accessed 23 Oct. 2026.
+
