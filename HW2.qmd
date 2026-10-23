@@ -15,6 +15,7 @@ library(tmap)
 library(tidyverse)
 library(spData)
 library(knitr)
+set_theme(theme_bw())
 ```
 
 
@@ -83,6 +84,7 @@ crashes_sf <- st_transform(crashes_sf, 3857)
 try mapping
 
 ```{r}
+tm_basemap(server = "Esri.WorldTopoMap") +
 tm_shape(la, bbox = redline) + 
     tm_polygons(lwd = 0.3) +
 tm_shape(redline) +
@@ -94,6 +96,7 @@ tm_legend(position = tm_pos_out("left", "center")) +
 tm_compass(position = tm_pos_in(
       "right",
        "bottom"))
+       
 ```
 
 ### Create a table summarizing the percentage of census block groups that fall within each HOLC grade
@@ -148,6 +151,48 @@ ggplot(holc_long, aes(x = grade, y = Mean_disparity, fill = grade)) +
 ```
 
 #### Interpretation
-In the graph above we can see that for both pe4rcentage of low income people and percentage of low life expectancy that as HOLC grade gerts worse (closer to 'D' rating), the average level of each variable increases. Neighborhoods with higher pedestrian fatalities are also experiencing more environmental and health challenges. This pattern suggest a potential relationship that could be explained by historical redlining practices. People residing in low-income neighborhoods may not be receiving the same government attention and funding for proper infrastructure as their high-income counterparts.
+In the graph above we can see that for both percentage of low income households and percentage of low life expectancy that as HOLC grade gerts worse (closer to 'D' rating), the average level of each variable increases. Neighborhoods with higher pedestrian fatalities are also experiencing more environmental and health challenges. This pattern suggest a potential relationship that could be explained by historical redlining practices. People residing in low-income neighborhoods may not be receiving the same government attention and funding for proper infrastructure as their high-income counterparts.
 
 
+## Part 2
+Your second task is to explore the legacy of historical redlining in Los Angeles on the report of pedestrian and bike crashes/ fatalities.
+
+Description
+For this assignment, you must produce the following based on observations from 2020-2025:
+
+## A figure summarizing the percent of observations within redlined neighborhoods within each HOLC grade
+
+Create a visualizations that shows:
+
+- The percentage of bike and pedestrian crashes and fatalities within each HOLC grade
+- Include an appropiate title, axis labels, and legend
+*Hints*: Make sure to filter for bike and pedestrian crahes(PEDESTRIAN_ACCIDENT and BICYCLE_ACCIDENT). Look at the difference in NAs between POINT_X/POINT_Y and LONGITUDE/LATITUDE before you decide which to use. Ensure the SWITRS data and HOLC dataset have matching CRS’, then perform a spatial join to assign each crash to a corresponding HOLC grade.
+
+
+```{r}
+
+bikeped <- crashes_sf |>
+  st_filter(la) |>                   
+  st_join(redline, join = st_within)     
+
+bikeped_summary <- bikeped |>
+  st_drop_geometry() |>
+  filter(ACCIDENT_YEAR >= 2020 & ACCIDENT_YEAR <=2025) |> 
+  filter(BICYCLE_ACCIDENT == "Y" | PEDESTRIAN_ACCIDENT == "Y") |>
+  drop_na(grade) |>  
+  group_by(grade) |>
+  summarise(crashes = n()) |>
+  mutate(percent = (crashes)/sum(crashes))                      # percents for both
+
+```
+
+
+```{r}
+ggplot(bikeped_summary, aes(x = grade, y = percent, fill = grade)) + 
+    geom_col() +
+    labs(title = "Percentage of bike and pedestrian crashes (and fatalities) between 2020-2025", 
+        x = "HOLC Grade", 
+        y = "Percent",
+        fill = "Grade")
+
+```
