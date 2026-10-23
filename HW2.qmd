@@ -1,5 +1,7 @@
 # EDS 223 HW 2 - Redlining and Environmental Injustice
 
+
+## Part 1
 Create a map of historical redlining neighborhoods, including:
 neighborhoods colored by HOLC grade
 an appropriate base map
@@ -12,16 +14,17 @@ library(sf)
 library(tmap)
 library(tidyverse)
 library(spData)
+library(knitr)
 ```
 
 
 ```{r}
 
-ej_screen <- st_read('EDS223-HW2/data/ejscreen/EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb')
+ej_screen <- st_read('data/ejscreen/EJSCREEN_2023_BG_StatePct_with_AS_CNMI_GU_VI.gdb')
 
-redline <- st_read('EDS223-HW2/data/mapping-inequality/mapping-inequality-los-angeles.json')
+redline <- st_read('data/mapping-inequality/mapping-inequality-los-angeles.json')
 
-crashes <- st_read('EDS223-HW2/data/SWITRS_LA/Crashes.csv')
+crashes <- st_read('data/SWITRS_LA/Crashes.csv')
 ```
 
 
@@ -29,19 +32,19 @@ LA county
 ```{r}
 #| warning: false
 #| message: false
-# filter to a state you are interested in
-california <- ej_screen %>%
-  dplyr::filter(ST_ABBREV == "CA") 
+# # filter to a state you are interested in
+# california <- ej_screen %>%
+#   dplyr::filter(ST_ABBREV == "CA") 
 
-# find the average values for all variables within counties
-ca_counties <- aggregate(california,
-                              by = list(california$CNTY_NAME),
-                              FUN = mean, na.rm = TRUE)
+# # find the average values for all variables within counties
+# ca_counties <- aggregate(california,
+#                               by = list(california$CNTY_NAME),
+#                               FUN = mean, na.rm = TRUE)
 
 
 # filter to a county you are interested in
-la <- ca_counties %>%
-  dplyr::filter(Group.1 %in% c("Los Angeles County"))
+la <- ej_screen %>%
+  dplyr::filter(CNTY_NAME %in% c("Los Angeles County"))
 ```
 
 crashes needs cleaning! make lat and long numeric
@@ -73,15 +76,78 @@ st_crs(redline)
 
 ```{r}
 # make la fit with the other crs
-la <- st_transform(la, 4326)
+redline <- st_transform(redline, 3857)
+crashes_sf <- st_transform(crashes_sf, 3857)
 ```
 
 try mapping
 
 ```{r}
 tm_shape(la, bbox = redline) + 
-    tm_polygons() +
+    tm_polygons(lwd = 0.3) +
 tm_shape(redline) +
-    tm_polygons(fill = 'grade', lwd = 0.1)
+    tm_polygons(fill = 'grade', lwd = 0.1,
+    fill.legend = tm_legend("HOLC Grade")) +
+tm_scalebar(position = tm_pos_out("center", "bottom")) +
+tm_title("HOLC Grade by Neighborhood in Los Angeles County") +
+tm_legend(position = tm_pos_out("left", "center")) +
+tm_compass(position = tm_pos_in(
+      "right",
+       "bottom"))
+```
+
+### Create a table summarizing the percentage of census block groups that fall within each HOLC grade
+
+```{r}
+
+# Join using within
+holc_bg <- st_join(la, redline, join = st_within ) 
+
+# group by the grading and then add a column with the percentage in each grade
+ holc_bg |>
+  group_by(grade) |>          
+  summarise(n = n()) |>
+  mutate(percent = n/sum(n)) |> 
+  kable()
+```
+
+### Create at least two visualizations summarizing current conditions (from the EJScreen data) within HOLC grades using the mean of the following variables (you may combine variables in a single visualization or look at a single variable per plot):
+% low income
+percentile for Particulate Matter 2.5
+percentile for low life expectancy
+Use ggplot for your visualizations! You will first need to calculate mean of each variable grouped by HOLC grade.
+
+```{r}
+# group by means
+holc_means <- holc_bg |>
+  group_by(grade) |>
+  summarise(low_income_pct = mean(LOWINCPCT, na.rm = TRUE),
+            pm25_ppm = mean(PM25, na.rm = TRUE),
+            low_life_exp_pct = mean(LIFEEXPPCT, na.rm = TRUE))
 
 ```
+
+plot by variable
+
+```{r}
+# pivot longer
+holc_long <- holc_means |>
+  pivot_longer(cols = c(low_income_pct, pm25_ppm, low_life_exp_pct), 
+               names_to = "Injustices",   
+               values_to = "Mean_disparity")  
+
+# plot and use facet wrap to show all 4
+ggplot(holc_long, aes(x = grade, y = Mean_disparity, fill = grade)) +
+   geom_col() + 
+   facet_wrap(~ Injustices, scales = "free_y") +
+    labs(title = "Average disparity levels by HOLC Grade",
+        x = "HOLC Grade",
+        y = "Average level",
+        fill = "Grade")
+
+```
+
+#### Interpretation
+In the graph above we can see that for both pe4rcentage of low income people and percentage of low life expectancy that as HOLC grade gerts worse (closer to 'D' rating), the average level of each variable increases. Neighborhoods with higher pedestrian fatalities are also experiencing more environmental and health challenges. This pattern suggest a potential relationship that could be explained by historical redlining practices. People residing in low-income neighborhoods may not be receiving the same government attention and funding for proper infrastructure as their high-income counterparts.
+
+
